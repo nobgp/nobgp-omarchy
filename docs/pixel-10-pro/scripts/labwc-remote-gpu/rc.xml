@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!-- GPU edition: labwc is only the headless host for a full-screen nested Hyprland; no labwc keybinds so Super/Alt combos reach Hyprland -->
+<labwc_config>
+  <core><gap>0</gap></core>
+  <theme><name></name><cornerRadius>0</cornerRadius></theme>
+  <keyboard>
+    <keybind key="C-A-S-W-F12"><action name="None" /></keybind>
+  </keyboard>
+  <windowRules>
+    <windowRule identifier="*" serverDecoration="no"><action name="ToggleFullscreen" /></windowRule>
+  </windowRules>
+</labwc_config>

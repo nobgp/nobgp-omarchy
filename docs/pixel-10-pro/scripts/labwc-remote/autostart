@@ -1,0 +1,5 @@
+wayvnc --log-level=info 127.0.0.1 5900 > /home/droid/shots/wayvnc.log 2>&1 &
+swaybg -i /home/droid/.local/share/omarchy-remote-bg.png -m fill > /dev/null 2>&1 &
+foot --app-id=omarchy-ff --title="Omarchy · fastfetch" bash -lc 'fastfetch; exec bash -l' &
+foot -o font='JetBrainsMono Nerd Font:size=7' --app-id=omarchy-btop --title="Omarchy · btop" bash -lc 'sleep 3; while true; do ~/.local/bin/btop-nocap; sleep 2; done' &
+foot --app-id=omarchy-status --title="Omarchy on Pixel · status" bash -lc '/home/droid/omarchy-remote-status.sh; exec bash -l' &

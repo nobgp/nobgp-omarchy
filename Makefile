@@ -26,4 +26,4 @@ pkg: dist
 	cd packaging/archlinux && makepkg -f
 
 clean:
-	rm -rf build packaging/archlinux/*.tar.gz packaging/archlinux/*.pkg.tar.zst packaging/archlinux/src packaging/archlinux/pkg
+	rm -rf build packaging/archlinux/*.tar.gz packaging/archlinux/*.pkg.tar.* packaging/archlinux/src packaging/archlinux/pkg

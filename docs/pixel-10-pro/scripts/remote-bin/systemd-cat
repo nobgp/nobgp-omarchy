@@ -1,0 +1,5 @@
+#!/bin/bash
+# omarchy-remote: no journald in the nspawn container; pass through to the command (logs to stderr).
+while [[ $# -gt 0 && $1 != -- ]]; do case $1 in -t|-p|--identifier|--priority) shift 2;; *) shift;; esac; done
+[[ $1 == -- ]] && shift
+exec "$@"
