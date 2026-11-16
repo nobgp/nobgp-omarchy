@@ -2,7 +2,7 @@
 
 *A build log turned write-up. It was done on a stock Pixel 10 Pro running official Android 17, bootloader locked, using Android's built-in Linux Terminal. Nothing was rooted or flashed, and the phone's own screen session was never touched. The platform facts below were checked on that machine on 16 November 2026.*
 
-![Hyprland + Omarchy, rendered by the Pixel's PowerVR GPU, viewed in a browser over noBGP](images/02-gpu-hyprland-omarchy.png)
+![Omarchy bar, dock and wallpaper, rendered by the Pixel's PowerVR GPU](images/04-omarchy-dock.png)
 
 ## TL;DR
 
@@ -283,6 +283,8 @@ omarchy-remote.service
 ```
 
 `hyprctl` confirms the monitor at `WAYLAND-1 1280x720@60`, layers `omarchy-background`, `omarchy-bar`, `omarchy-dock` and `omarchy-notifications`, and a live client.
+
+![Hyprland + Omarchy, rendered by the Pixel's PowerVR GPU, viewed in a browser over noBGP](images/02-gpu-hyprland-omarchy.png)
 
 ![The renderer line, straight from the session](images/03-gpu-renderer-line.png)
 
