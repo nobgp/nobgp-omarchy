@@ -1,0 +1,3 @@
+#!/bin/bash
+# omarchy-remote: skip first-run provisioning in the off-screen session (its Wi-Fi step busy-loops without NetworkManager).
+exit 0

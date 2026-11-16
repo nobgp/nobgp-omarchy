@@ -2,7 +2,7 @@
 
 *A build log turned write-up. It was done on a stock Pixel 10 Pro running official Android 17, bootloader locked, using Android's built-in Linux Terminal. Nothing was rooted or flashed, and the phone's own screen session was never touched. The platform facts below were checked on that machine on 16 November 2026.*
 
-![Omarchy bar, dock and wallpaper, rendered by the Pixel's PowerVR GPU](images/04-omarchy-dock.png)
+![Hyprland and the Omarchy shell, rendered by the Pixel's PowerVR GPU and typed into from a laptop browser over noBGP](images/02-gpu-hyprland-omarchy.png)
 
 ## TL;DR
 
@@ -10,6 +10,7 @@
 - **Hyprland 0.56.2 runs with the full Omarchy shell** (bar, dock, wallpaper, notifications, 24 themes) and is **rendered by the Pixel's PowerVR GPU**: `zink Vulkan 1.4(PowerVR D-Series DXT-48-1536 MC1 (IMAGINATION_PROPRIETARY))`.
 - The desktop is off-screen: Hyprland nests inside a headless labwc, which feeds wayvnc, then noVNC. Both listen on **127.0.0.1 only**. That is published as a **sign-in-only noBGP service**, so it opens in any browser, anywhere, with no open ports and no public IP.
 - Getting there took 11 stages, several failures, a 26-line `LD_PRELOAD` shim and some honesty about the limits.
+- Want to build it yourself? [Reproduce it](#reproduce-it) has every step in order. The stages below explain why each step is there.
 
 ## The setup
 
@@ -52,7 +53,7 @@ curl -fLO $MIRROR/ArchLinuxARM-aarch64-latest.tar.gz
 curl -fsSLO $MIRROR/ArchLinuxARM-aarch64-latest.tar.gz.sig
 curl -fsSLO $MIRROR/ArchLinuxARM-aarch64-latest.tar.gz.md5
 md5sum -c ArchLinuxARM-aarch64-latest.tar.gz.md5
-gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys <Arch Linux ARM Build System key>
+gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys 68B3537F39A313B3E574D06777193F152BDBE6A6   # Arch Linux ARM Build System
 gpg --status-fd 1 --verify ArchLinuxARM-aarch64-latest.tar.gz.sig ArchLinuxARM-aarch64-latest.tar.gz | grep VALIDSIG
 M=/var/lib/machines/omarchy
 sudo mkdir -p $M && sudo bsdtar -xpf ArchLinuxARM-aarch64-latest.tar.gz -C $M
@@ -67,15 +68,18 @@ sudo systemd-nspawn -q -D $M pacman -Syu
 Omarchy is no longer x86-only. Its current branch ships an aarch64 platform with its own package repo and an Omarchy-run Arch Linux ARM mirror. So this is **real Omarchy**, not a lookalike.
 
 ```bash
-# use Omarchy's own pacman.conf + mirrorlist for aarch64
-curl -fsSL $OMC/pacman-stable.conf -o $M/etc/pacman.conf      # $OMC = omarchy repo, default/pacman/aarch64
-curl -fsSL $OMC/mirrorlist-stable -o $M/etc/pacman.d/mirrorlist
-# packaging key from Omarchy's own Web Key Directory, fingerprint checked against the pinned value
-gpg --auto-key-locate clear,nodefault,wkd --locate-external-keys <packaging-key>
-gpg --export <fingerprint> > $M/root/omarchy.gpg
-systemd-nspawn -D $M pacman-key --add /root/omarchy.gpg
-systemd-nspawn -D $M pacman-key --lsign-key <fingerprint>
-systemd-nspawn -D $M pacman -S omarchy-keyring
+# Omarchy's own pacman.conf + mirrorlist for aarch64 (this build used commit e6554e02 of omacom/omarchy)
+OMC=https://raw.githubusercontent.com/omacom/omarchy/master/default/pacman/aarch64
+sudo curl -fsSL $OMC/pacman-stable.conf -o $M/etc/pacman.conf
+sudo curl -fsSL $OMC/mirrorlist-stable -o $M/etc/pacman.d/mirrorlist
+# Omarchy's packaging key, from its own Web Key Directory; check the fingerprint before trusting it
+FPR=40DFB630FF42BCFFB047046CF0134EE680CAC571
+gpg --auto-key-locate clear,nodefault,wkd --locate-external-keys pkgs@omarchy.org
+gpg --fingerprint $FPR
+gpg --export $FPR | sudo tee $M/root/omarchy.gpg >/dev/null
+sudo systemd-nspawn -q -D $M --pipe pacman-key --add /root/omarchy.gpg
+sudo systemd-nspawn -q -D $M --pipe pacman-key --lsign-key $FPR
+sudo systemd-nspawn -q -D $M --pipe pacman -Sy --noconfirm omarchy-keyring
 ```
 
 **Failure:** the first install died with `hyprtoolkit needs libaquamarine.so=15`. Stage 2 had upgraded to Arch Linux ARM *latest*, while Omarchy stable pins an older snapshot. `pacman -Sy` kept the newer databases.
@@ -84,16 +88,24 @@ systemd-nspawn -D $M pacman -S omarchy-keyring
 
 ```bash
 pacman -Syyuu    # force-refresh DBs and allow downgrades to Omarchy's snapshot
-pacman -S omarchy omarchy-settings omarchy-nvim hyprland quickshell foot ...
+pacman -S --needed omarchy omarchy-settings omarchy-nvim base-devel go foot grim slurp wl-clipboard wtype \
+  starship fastfetch btop neovim lazygit eza fzf zoxide ripgrep bat fd jq gum tmux less man-db bash-completion \
+  noto-fonts noto-fonts-emoji woff2-font-awesome ttf-jetbrains-mono-nerd-basic hyprpicker hyprsunset \
+  hyprland-guiutils xdg-desktop-portal-hyprland mesa vulkan-virtio imagemagick inetutils plocate unzip whois \
+  mise-bin tldr qt6-imageformats labwc wayvnc swaybg mesa-utils vulkan-tools vulkan-gfxstream
 ```
 
-The result is Omarchy 4.5.0 with Hyprland 0.56.2, Quickshell, Mesa 26.2.5, 24 themes and the usual tools (neovim, lazygit, btop, fastfetch, starship…). Things a phone container can't use were skipped: Chrome, LibreOffice, Docker, the bootloader and snapshots. Arch ARM's stock `alarm` user was deleted and root was locked. A fresh `droid` user (uid 1000, wheel, password login disabled) took its place.
+The result is Omarchy 4.5.0 with Hyprland 0.56.2, Quickshell, Mesa 26.2.5, 24 themes and the usual tools (neovim, lazygit, btop, fastfetch, starship…). Things a phone container can't use were skipped: Chrome, LibreOffice, Docker, the bootloader and snapshots. Arch ARM's stock `alarm` user was deleted and root was locked. A fresh `droid` user (uid 1000, wheel, password login disabled) took its place:
+
+```bash
+systemd-nspawn -q -D $M --pipe bash -c 'userdel -r alarm; passwd -l root; useradd -m -u 1000 -G wheel -s /bin/bash droid; passwd -l droid'
+```
 
 ## Stage 4: noBGP's Omarchy client, built on the phone
 
 The `nobgp-omarchy` client (bar widget, menu entries, web console launcher) was built **on the phone** inside the container. `make test` passed, then `make pkg` ran makepkg plus its `check()` tests: **26 s on the Tensor G5**. After that, `pacman -U`.
 
-- **Failure:** the README assumes `*.pkg.tar.zst`, but Arch Linux ARM's makepkg writes `.pkg.tar.xz`. It's a one-line upstream fix.
+- **Failure:** the install step looked for `*.pkg.tar.zst`, but Arch Linux ARM's makepkg writes `.pkg.tar.xz`. Install whatever `make pkg` wrote (`packaging/archlinux/nobgp-omarchy-*.pkg.tar.*`). `make clean` now removes either kind.
 - Inside the container the bar honestly says `stopped`, because the container never got the agent's credentials. That was deliberate.
 - On the VM, next to the real agent: `{"class":"connected", "Connected to router.nobgp.com over QUIC", "13 peers"}`.
 
@@ -134,7 +146,13 @@ sudo systemd-run --unit=omarchy-novnc -p User=droid \
   websockify --web /usr/share/novnc 127.0.0.1:6080 127.0.0.1:5900
 ```
 
-`omarchy-remote-session.sh` is [`scripts/omarchy-remote-session.sh`](scripts/omarchy-remote-session.sh). Its labwc config is [`scripts/labwc-remote/`](scripts/labwc-remote/).
+`omarchy-remote-session.sh` is [`scripts/omarchy-remote-session.sh`](scripts/omarchy-remote-session.sh). Its labwc config is [`scripts/labwc-remote/`](scripts/labwc-remote/). That config's autostart also wants:
+
+- a wallpaper at `~/.local/share/omarchy-remote-bg.png` (any image works);
+- `~/.local/bin/btop-nocap`, a plain copy of btop (`cp /usr/bin/btop ~/.local/bin/btop-nocap`). Arch's btop carries file capabilities (`cap_perfmon`) that the container won't grant, and copying drops them;
+- [`scripts/omarchy-remote-status.sh`](scripts/omarchy-remote-status.sh), the status pane.
+
+This CPU session is the fallback. The GPU session in stage 11 replaces it.
 
 Both VNC and noVNC listen **only on 127.0.0.1**. The only way in is the noBGP service, which requires a noBGP sign-in. No port forwarding, no public IP and no firewall holes on the phone or the home network.
 
@@ -159,9 +177,9 @@ Both VNC and noVNC listen **only on 127.0.0.1**. The only way in is the noBGP se
 `+virgl` in dmesg suggested virgl should work. The real answer comes from asking virtio-gpu which **context types** (capsets) the host supports:
 
 ```bash
-grep -E 'virgl|context init|cap sets' /sys/kernel/debug/dri/128/virtio-gpu-features
+sudo grep -E 'virgl|context init|cap sets' /sys/kernel/debug/dri/128/virtio-gpu-features
 #   virgl : yes   context init : yes   cap sets : 1
-python3 capsets.py      # DRM_IOCTL_VIRTGPU_GETPARAM(VIRTGPU_PARAM_SUPPORTED_CAPSET_IDs)
+sudo python3 capsets.py      # DRM_IOCTL_VIRTGPU_GETPARAM(VIRTGPU_PARAM_SUPPORTED_CAPSET_IDs)
 #   VIRTGPU_PARAM_SUPPORTED_CAPSET_IDs = 0x8 -> ['gfxstream-vulkan']
 ```
 
@@ -197,7 +215,7 @@ The **same GPU** from the Debian VM side with Debian's Mesa 25.0.7:
 OpenGL core profile renderer: zink Vulkan 1.4(PowerVR D-Series DXT-48-1536 MC1 (IMAGINATION_PROPRIETARY))
 ```
 
-Newer zink requires `nullDescriptor` from robustness2; this gfxstream/PowerVR stack doesn't offer it, and the older zink in Debian doesn't need it. The fix is self-contained and needs no changes to Arch's packages. Copy Debian's Mesa stack (182 MB) into the container under `/opt/debian-mesa` and point the loaders at it:
+Newer zink requires `nullDescriptor` from robustness2; this gfxstream/PowerVR stack doesn't offer it, and the older zink in Debian doesn't need it. The fix is self-contained and needs no changes to Arch's packages. Copy Debian's Mesa stack (182 MB) into the container under `/opt/debian-mesa` and point the loaders at it. [`scripts/copy-debian-mesa.sh`](scripts/copy-debian-mesa.sh) does the copy, run as root in the Debian VM. It takes Mesa's EGL, GBM, gallium (zink) and gfxstream Vulkan libraries plus LLVM 19 and the few libraries they need, all already in the Terminal's Debian image. Then it installs [`scripts/debian-mesa/env.sh`](scripts/debian-mesa/env.sh):
 
 ```bash
 # /opt/debian-mesa/env.sh (source inside the container)
@@ -205,6 +223,7 @@ export LD_LIBRARY_PATH=/opt/debian-mesa/lib
 export LIBGL_DRIVERS_PATH=/opt/debian-mesa/lib/dri GBM_BACKENDS_PATH=/opt/debian-mesa/lib/gbm
 export VK_DRIVER_FILES=/opt/debian-mesa/icd.d/gfxstream_vk_icd.json
 export MESA_LOADER_DRIVER_OVERRIDE=zink MESA_VK_WSI_DEBUG=sw
+export NODEVICE_SELECT=1 VK_LOADER_LAYERS_DISABLE='*device_select*'   # stage 11, fix 1
 ```
 
 ```
@@ -244,7 +263,7 @@ int epoll_wait(int fd, struct epoll_event *ev, int n, int t) {
 __attribute__((constructor)) static void init(void) { unsetenv("LD_PRELOAD"); } // don't leak into children
 ```
 
-Full source, 26 lines: [`scripts/aqflush/aqflush.c`](scripts/aqflush/aqflush.c). This should be fixed upstream in aquamarine.
+Full source, 26 lines: [`scripts/aqflush/aqflush.c`](scripts/aqflush/aqflush.c). Build it inside the container (base-devel is installed) into `/opt/aqflush/aqflush.so`. This should be fixed upstream in aquamarine.
 
 **Fix 3: no preferred mode.** The nested output arrives without a mode:
 
@@ -266,10 +285,13 @@ The full file is [`scripts/remote.lua`](scripts/remote.lua). The headless labwc 
 
 **Container housekeeping for the Omarchy shell:**
 
-- The container has no journald, so `systemd-cat` failed and Quickshell never started. A PATH shim that just runs the command fixes it.
+- The container has no journald, so `systemd-cat` failed and Quickshell never started. A PATH shim that just runs the command fixes it: [`scripts/remote-bin/systemd-cat`](scripts/remote-bin/systemd-cat).
+- Omarchy's first-run provisioning busy-looped on its Wi-Fi step (there's no NetworkManager in the container). A shim skips it: [`scripts/remote-bin/omarchy-provision-first-run`](scripts/remote-bin/omarchy-provision-first-run). Both shims live in `~/.local/share/omarchy-remote/bin`, which comes first on Hyprland's `PATH`.
 - `qt6-imageformats` was needed for the webp wallpaper.
 - The idle lock was turned off with Omarchy's stay-awake indicator.
 - First-run was marked done (`omarchy-done mark first-run-user`) so it stopped re-posting setup notifications on every start.
+
+Two scripts tie it together. [`scripts/omarchy-remote-session-gpu.sh`](scripts/omarchy-remote-session-gpu.sh) starts the headless labwc on the GPU. Its autostart ([`scripts/labwc-remote-gpu/`](scripts/labwc-remote-gpu/)) starts wayvnc and [`scripts/omarchy-hypr-nested.sh`](scripts/omarchy-hypr-nested.sh), which starts Hyprland with the Debian Mesa environment, the shims on `PATH` and `aqflush.so` preloaded.
 
 The final session chain:
 
@@ -284,11 +306,50 @@ omarchy-remote.service
 
 `hyprctl` confirms the monitor at `WAYLAND-1 1280x720@60`, layers `omarchy-background`, `omarchy-bar`, `omarchy-dock` and `omarchy-notifications`, and a live client.
 
-![Hyprland + Omarchy, rendered by the Pixel's PowerVR GPU, viewed in a browser over noBGP](images/02-gpu-hyprland-omarchy.png)
+![Omarchy bar, dock and wallpaper, rendered by the Pixel's PowerVR GPU](images/04-omarchy-dock.png)
 
 ![The renderer line, straight from the session](images/03-gpu-renderer-line.png)
 
 ---
+
+## Reproduce it
+
+Everything above, in order, using the files in [`scripts/`](scripts/). Run the commands from `docs/pixel-10-pro` in a clone of this repo. Steps 1–3 run in the Terminal's Debian VM as `droid`, which has passwordless sudo. `M=/var/lib/machines/omarchy`, and `C="sudo systemd-nspawn -q -D $M --pipe"` runs a command in the container. Do steps 1–3 while the desktop is stopped, because `systemd-nspawn` refuses a container tree that's already running.
+
+1. **The container and Omarchy.** Follow stages 2 and 3: the Arch Linux ARM tarball (checksum and signature checked), Omarchy's aarch64 repo and key, `pacman -Syyuu`, the package list, then the `droid` user.
+2. **The GPU stack.** Copy Debian's Mesa in, then build the flush shim inside the container:
+   ```bash
+   sudo ./scripts/copy-debian-mesa.sh
+   sudo install -D -m 644 scripts/aqflush/aqflush.c $M/opt/aqflush/aqflush.c
+   $C gcc -O2 -fPIC -shared /opt/aqflush/aqflush.c -o /opt/aqflush/aqflush.so -ldl
+   ```
+3. **The session files**, owned by uid 1000 in the container:
+   ```bash
+   H=$M/home/droid
+   sudo install -o 1000 -g 1000 -m 755 scripts/omarchy-remote-session-gpu.sh scripts/omarchy-hypr-nested.sh scripts/omarchy-remote-status.sh $H/
+   sudo install -d -o 1000 -g 1000 $H/.config/labwc-remote-gpu $H/.config/hypr $H/.local/share/omarchy-remote/bin
+   sudo install -o 1000 -g 1000 -m 644 scripts/labwc-remote-gpu/* $H/.config/labwc-remote-gpu/
+   sudo install -o 1000 -g 1000 -m 644 scripts/remote.lua $H/.config/hypr/remote.lua
+   sudo install -o 1000 -g 1000 -m 755 scripts/remote-bin/* $H/.local/share/omarchy-remote/bin/
+   $C su droid -c 'omarchy-done mark first-run-user'
+   ```
+   `remote.lua` loads `~/.config/hypr/hyprland.lua`, so Omarchy's own user config must be in place first. If it isn't, run Omarchy's user setup once as `droid`.
+4. **Start the desktop and noVNC.** Both listen on 127.0.0.1 only:
+   ```bash
+   sudo systemd-run --unit=omarchy-remote --description='Omarchy off-screen desktop' \
+     systemd-nspawn -q -D $M --bind=/dev/dri/renderD128 --property='DeviceAllow=/dev/dri/renderD128 rw' \
+       --user droid /home/droid/omarchy-remote-session-gpu.sh
+   sudo apt install -y novnc websockify
+   sudo systemd-run --unit=omarchy-novnc -p User=droid \
+     websockify --web /usr/share/novnc 127.0.0.1:6080 127.0.0.1:5900
+   ```
+   Logs go to `$M/home/droid/shots/`. These are transient units, so run step 4 again after the VM restarts.
+5. **Make it reachable with noBGP.** Install the agent in the Debian VM (not the container) and join your network. `NOBGP_KEY` is a network key from the noBGP console:
+   ```bash
+   curl -fsSL https://downloads.nobgp.com/agent/install.sh -o /tmp/nobgp-install.sh
+   sudo NOBGP_KEY=<your network key> sh /tmp/nobgp-install.sh
+   ```
+   Then publish `http://127.0.0.1:6080` as a service, from the web console or with `nobgp login` then `nobgp proxy publish`. Leave it private (sign-in required) and share it only with yourself or people you choose. Open its URL from any computer, then click Connect. The status pane's GPU line should name the PowerVR GPU, not llvmpipe. Anyone the service is shared with gets the whole desktop, so keep the share list short.
 
 ## Honest limits
 
@@ -298,13 +359,13 @@ omarchy-remote.service
   - `vkgears` runs at **1.27 FPS**.
   - `es2gears_wayland` and `eglgears_wayland` crash on both Mesa stacks.
 - **It's a desktop, not a gaming rig.** At idle the session is about 0% CPU, the VM is about 79% idle on 8 cores, and it uses about 1.5–1.7 GB of 3.8 GiB RAM.
-- **It's VNC.** 1280x720 over noVNC. Typing and clicking are fine, but it's not 120 Hz.
+- **It's VNC.** 1280x720 over noVNC. From a laptop browser, with the phone on 5G and Wi-Fi off, round trips measured a median of 140 ms (mostly 125–150 ms, with occasional spikes to about 430 ms). Typing and clicking are fine, but it's not 120 Hz.
 - **It's not on the phone's screen.** The Terminal app's Weston (wl_compositor v5) still can't host Hyprland. Viewing happens in a browser, which can be a browser on the phone itself.
 
 ## Everything is reversible
 
 - **Back to the CPU-rendered labwc session:** stop the unit, then `systemd-run` it again with the old `omarchy-remote-session.sh`.
-- **Remove the GPU path:** delete `/opt/debian-mesa`, `/opt/aqflush`, `~/.config/labwc-remote-gpu` and `~/.config/hypr/remote.lua` inside the container.
+- **Remove the GPU path:** delete `/opt/debian-mesa`, `/opt/aqflush`, `~/.config/labwc-remote-gpu`, `~/.config/hypr/remote.lua` and `~/.local/share/omarchy-remote` inside the container.
 - **Remove everything:**
   1. Stop `omarchy-remote` and `omarchy-novnc`.
   2. Unpublish the noBGP service.
@@ -321,6 +382,11 @@ The phone sits behind carrier or home NAT. The VM's address is a private guest I
 - [`images/`](images/): the screenshots above
 - [`scripts/capsets.py`](scripts/capsets.py): virtio-gpu capset probe
 - [`scripts/aqflush/aqflush.c`](scripts/aqflush/aqflush.c): the 26-line flush shim
+- [`scripts/copy-debian-mesa.sh`](scripts/copy-debian-mesa.sh) and [`scripts/debian-mesa/env.sh`](scripts/debian-mesa/env.sh): the Debian Mesa copy and its environment
+- [`scripts/omarchy-remote-session-gpu.sh`](scripts/omarchy-remote-session-gpu.sh): GPU session entry (headless labwc)
+- [`scripts/omarchy-hypr-nested.sh`](scripts/omarchy-hypr-nested.sh): starts the nested Hyprland
+- [`scripts/omarchy-remote-status.sh`](scripts/omarchy-remote-status.sh): the on-screen status pane
+- [`scripts/remote-bin/`](scripts/remote-bin/): the `systemd-cat` and first-run shims
 - [`scripts/remote.lua`](scripts/remote.lua): nested Hyprland config
 - [`scripts/omarchy-remote-session.sh`](scripts/omarchy-remote-session.sh): CPU-rendered labwc session
 - [`scripts/labwc-remote/`](scripts/labwc-remote/): labwc config for that CPU session
