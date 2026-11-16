@@ -1,0 +1,54 @@
+# On a tag v<version>: test, build the linux amd64/arm64 tarballs, render the
+# AUR PKGBUILD with their checksums, and publish a GitHub release with
+# everything install.sh and the AUR package need.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: go vet ./... && go test ./...
+      - name: Build
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            dir=nobgp-omarchy-${version}
+            rm -rf "stage/$dir" && mkdir -p "stage/$dir"
+            CGO_ENABLED=0 GOOS=linux GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X main.version=${version}" -o "stage/$dir/nobgp-omarchy" ./cmd/nobgp-omarchy
+            cp -r packaging desktop README.md LICENSE "stage/$dir/"
+            tar -C stage -czf "dist/nobgp-omarchy-${version}-linux-${arch}.tar.gz" "$dir"
+          done
+          amd=$(sha256sum dist/*-linux-amd64.tar.gz | cut -d' ' -f1)
+          arm=$(sha256sum dist/*-linux-arm64.tar.gz | cut -d' ' -f1)
+          sed -e "s/@VERSION@/${version}/" -e "s/@SHA_AMD64@/${amd}/" -e "s/@SHA_ARM64@/${arm}/" \
+            packaging/aur/PKGBUILD.in > dist/PKGBUILD
+          cp packaging/aur/nobgp-omarchy-bin.install install.sh dist/
+          (cd dist && sha256sum *.tar.gz > SHA256SUMS)
+          ls -la dist
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --title "noBGP for Omarchy ${GITHUB_REF_NAME}" --notes-file - <<'NOTES'
+          Install on Omarchy 4.x (x86_64 or aarch64):
+
+          ```bash
+          curl -fsSL https://github.com/nobgp/nobgp-omarchy/releases/latest/download/install.sh | bash
+          ```
+
+          Or from the AUR: `yay -S nobgp-omarchy-bin`. See the README for what it does and how to remove it.
+          NOTES

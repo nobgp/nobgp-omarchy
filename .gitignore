@@ -1,0 +1,7 @@
+build/
+dist/
+stage/
+packaging/archlinux/*.tar.gz
+packaging/archlinux/*.pkg.tar.zst
+packaging/archlinux/src/
+packaging/archlinux/pkg/
