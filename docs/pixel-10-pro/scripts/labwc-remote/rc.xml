@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- Off-screen Omarchy-on-Pixel desktop: headless labwc, 1280x720, served by wayvnc on 127.0.0.1:5900 -->
+<labwc_config>
+  <core><gap>8</gap></core>
+  <theme><name></name><cornerRadius>8</cornerRadius><font place="ActiveWindow"><name>JetBrainsMono Nerd Font</name><size>9</size></font></theme>
+  <keyboard>
+    <default />
+    <keybind key="W-Return"><action name="Execute" command="foot" /></keybind>
+    <keybind key="W-q"><action name="Close" /></keybind>
+  </keyboard>
+  <windowRules>
+    <windowRule identifier="omarchy-ff"><action name="MoveTo" x="8" y="8" /><action name="ResizeTo" width="620" height="704" /></windowRule>
+    <windowRule identifier="omarchy-btop"><action name="MoveTo" x="636" y="8" /><action name="ResizeTo" width="636" height="420" /></windowRule>
+    <windowRule identifier="omarchy-status"><action name="MoveTo" x="636" y="436" /><action name="ResizeTo" width="636" height="276" /></windowRule>
+    <windowRule identifier="aquamarine" serverDecoration="no"><action name="ToggleFullscreen" /></windowRule>
+  </windowRules>
+</labwc_config>

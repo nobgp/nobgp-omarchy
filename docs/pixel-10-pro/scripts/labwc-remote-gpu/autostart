@@ -1,0 +1,2 @@
+wayvnc --log-level=info 127.0.0.1 5900 > /home/droid/shots/wayvnc.log 2>&1 &
+/home/droid/omarchy-hypr-nested.sh &

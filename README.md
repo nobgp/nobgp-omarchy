@@ -43,6 +43,10 @@ Suggested hotkey, for `~/.config/hypr/bindings.lua`. Apps go on the `Super + Shi
 o.bind("SUPER + SHIFT + U", "noBGP", { launch = "omarchy-launch-or-focus-tui nobgp-omarchy" })
 ```
 
+## Running Omarchy on a Pixel 10 Pro
+
+A stock Pixel 10 Pro (official Android 17, bootloader locked) can run Omarchy 4.5.0 in the Linux Terminal's Debian VM, with Hyprland rendered by the phone's GPU. The desktop listens on `127.0.0.1` and is published as a sign-in-only noBGP service. Write-up, scripts and screenshots: [docs/pixel-10-pro/](docs/pixel-10-pro/).
+
 ## How it works
 
 The app drives the noBGP agent's own CLI (`nobgp … --json`) and never reads the agent's files or socket. The agent (`nobgp`) is noBGP's closed-source daemon, installed from downloads.nobgp.com. This repository is the open-source desktop integration around it.
